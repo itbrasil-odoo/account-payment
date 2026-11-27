@@ -1,0 +1,50 @@
+# © 2016 David Dufresne <david.dufresne@savoirfairelinux.com>
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def pre_init_hook(env):
+    """
+    The objective of this hook is to speed up the installation
+    of the module on an existing Odoo instance.
+
+    Without this script, if a database has a few hundred thousand
+    journal entries, which is not unlikely, the update will take
+    at least a few hours.
+
+    It creates the stored related column account_move_line.invoice_user_id
+    and fills it from account_move.invoice_user_id in one query, so that the
+    ORM does not compute it line by line during the install.
+    """
+    store_field_invoice_user_id(env.cr)
+
+
+def store_field_invoice_user_id(cr):
+    cr.execute(
+        """SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name='account_move_line' AND
+    column_name='invoice_user_id'"""
+    )
+    if not cr.fetchone():
+        cr.execute(
+            """
+            ALTER TABLE account_move_line ADD COLUMN invoice_user_id integer;
+            COMMENT ON COLUMN account_move_line.invoice_user_id IS
+            'Invoice salesperson';
+            """
+        )
+
+    logger.info("Computing field invoice_user_id on account.move.line")
+
+    cr.execute(
+        """
+        UPDATE account_move_line aml
+        SET invoice_user_id = am.invoice_user_id
+        FROM account_move AS am
+        WHERE aml.move_id = am.id
+        """
+    )
