@@ -15,10 +15,9 @@ def pre_init_hook(env):
     journal entries, which is not unlikely, the update will take
     at least a few hours.
 
-    The pre init script only writes 0 in the field maturity_residual
-    so that it is not computed by the install.
-
-    The post init script sets the value of maturity_residual.
+    It creates the stored related column account_move_line.invoice_user_id
+    and fills it from account_move.invoice_user_id in one query, so that the
+    ORM does not compute it line by line during the install.
     """
     store_field_invoice_user_id(env.cr)
 
