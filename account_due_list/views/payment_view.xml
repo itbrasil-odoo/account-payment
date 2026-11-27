@@ -50,14 +50,12 @@
                 />
                 <field
                     name="amount_currency"
-                    sum="Total amount currency"
                     groups="base.group_multi_currency"
                     optional="hide"
                 />
                 <field name="amount_residual" sum="Total Residual" />
                 <field
                     name="amount_residual_currency"
-                    sum="Total Residual Currency"
                     groups="base.group_multi_currency"
                     optional="show"
                 />
@@ -239,7 +237,7 @@
         <field name="search_view_id" ref="view_payments_filter" />
         <field
             name="domain"
-        >[('account_id.reconcile', '=', True), ('balance', '!=', 0)]</field>
+        >[('account_id.reconcile', '=', True), '|', ('balance', '!=', 0), ('amount_currency', '!=', 0)]</field>
     </record>
     <menuitem
         id="menu_action_invoice_payments"

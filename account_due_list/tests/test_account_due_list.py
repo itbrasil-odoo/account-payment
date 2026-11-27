@@ -1,6 +1,8 @@
+from lxml import etree
+
 from odoo import fields
 from odoo.tests import tagged
-from odoo.tools.safe_eval import safe_eval
+from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -21,9 +23,26 @@ class TestAccountDueList(AccountTestInvoicingCommon):
         cls.partner_a.ref = "PARTNER-A-REF"
         cls.action = cls.env.ref("account_due_list.action_invoice_payments")
 
+    def _default_filters_domain(self):
+        """Domain of the filters the action enables by default, read from
+        the search view, as the web client applies them."""
+        context = safe_eval(self.action.context)
+        arch = etree.fromstring(self.action.search_view_id.arch)
+        domain = []
+        for key in context:
+            if not key.startswith("search_default_"):
+                continue
+            name = key[len("search_default_") :]
+            nodes = arch.xpath(f"//filter[@name='{name}']")
+            self.assertTrue(nodes, f"default filter {name} not in the search view")
+            domain += safe_eval(nodes[0].get("domain"), {"time": time})
+        return domain
+
     def _due_lines(self, domain=None):
         action_domain = safe_eval(self.action.domain)
-        return self.env["account.move.line"].search(action_domain + (domain or []))
+        return self.env["account.move.line"].search(
+            action_domain + self._default_filters_domain() + (domain or [])
+        )
 
     def test_receivable_line_in_due_list(self):
         receivable = self.invoice.line_ids.filtered(
@@ -59,7 +78,9 @@ class TestAccountDueList(AccountTestInvoicingCommon):
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=self.invoice.ids
         ).create({})._create_payments()
-        lines = self._due_lines(
-            [("move_id", "=", self.invoice.id), ("full_reconcile_id", "=", False)]
-        )
-        self.assertFalse(lines)
+        self.assertFalse(self._due_lines([("move_id", "=", self.invoice.id)]))
+
+    def test_open_amount_in_currency_is_listed(self):
+        """A line whose balance rounds to zero in company currency but still
+        has an amount in foreign currency stays in the due list."""
+        self.assertIn(("amount_currency", "!=", 0), safe_eval(self.action.domain))

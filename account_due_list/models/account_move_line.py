@@ -29,4 +29,5 @@ class AccountMoveLine(models.Model):
         related="move_id.invoice_user_id",
         string="Invoice salesperson",
         store=True,
+        index="btree_not_null",
     )
